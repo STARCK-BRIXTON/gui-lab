@@ -1,0 +1,45 @@
+name: Cut release
+
+# Boton: calcula X.Y.Z desde develop (Conventional Commits) y crea release/X.Y.Z.
+# El push de la rama dispara el pipeline (rc.1 -> deploy PRE -> PR automatico a main).
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  cut:
+    runs-on: ubuntu-latest
+    env:
+      HAS_PAT: ${{ secrets.GITFLOW_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+          token: ${{ secrets.GITFLOW_TOKEN || github.token }}
+      - run: git fetch --tags --force
+      - id: v
+        run: .github/scripts/semver.sh develop version.json
+      - name: Validar
+        run: |
+          V="${{ steps.v.outputs.version }}"
+          if git ls-remote --exit-code --heads origin "release/$V" >/dev/null 2>&1; then
+            echo "::error::release/$V ya existe"; exit 1
+          fi
+          OPEN=$(git ls-remote --heads origin 'release/*' | awk '{print $2}' | sed 's#refs/heads/##' | head -1)
+          if [[ -n "$OPEN" ]]; then echo "::error::Ya hay una release abierta: $OPEN"; exit 1; fi
+      - name: Crear rama
+        run: |
+          V="${{ steps.v.outputs.version }}"
+          git checkout -b "release/$V"
+          git push origin "release/$V"
+          echo "Creada release/$V" >> "$GITHUB_STEP_SUMMARY"
+      - name: Disparar pipeline (sin PAT el push no dispara workflows)
+        if: env.HAS_PAT != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run gitflow.cicd.yaml --ref "release/${{ steps.v.outputs.version }}"

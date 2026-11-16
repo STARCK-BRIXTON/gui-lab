@@ -1,0 +1,32 @@
+name: Cut hotfix
+
+# Boton: crea hotfix/X.Y.(Z+1) desde main. Despues se pushea el fix a esa rama:
+# el pipeline genera X.Y.(Z+1)-rc.N, despliega a PRE y abre el PR a main.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cut:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITFLOW_TOKEN || github.token }}
+      - run: git fetch --tags --force
+      - id: v
+        run: .github/scripts/semver.sh hotfix/new version.json
+      - name: Crear rama
+        run: |
+          V="${{ steps.v.outputs.version }}"
+          if git ls-remote --exit-code --heads origin "hotfix/$V" >/dev/null 2>&1; then
+            echo "::error::hotfix/$V ya existe"; exit 1
+          fi
+          git checkout -b "hotfix/$V"
+          git push origin "hotfix/$V"
+          echo "Creada hotfix/$V. Pushea el fix a esa rama." >> "$GITHUB_STEP_SUMMARY"

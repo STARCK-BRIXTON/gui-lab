@@ -1,45 +1,45 @@
-name: GitFlow Lab (dummy)
+name: GitFlow CI/CD (dummy)
 
-# Workflow dummy para probar el flujo de gitflow.png:
-#   feature/*  -> unit tests + sonar
-#   develop    -> tests + sonar + build + tag vX.Y.Z-prerelease.N + deploy dev
-#   release/*  -> build + tag vX.Y.Z-rc.N + publish artifacts + deploy pre
-#   hotfix/*   -> build + tag vX.Y.(Z+1)-rc.N + deploy pre
-#   main       -> retag imagen vX.Y.Z (sin rebuild) + tag + deploy pro (gated) + sync main -> develop
-# La version se calcula en .github/scripts/semver.sh a partir de version.json y los tags.
+# Pipeline dummy del flujo docs/gitflow-v2.png. Todo lo de Docker/ACR/AKS/Helm/Sonar es `echo`;
+# lo real es el versionado, el tageo, el PR automatico y la sincronizacion de ramas.
+#   feature/*, PR  -> unit tests + sonar
+#   develop        -> tests + sonar + build/push imagen X.Y.Z-prerelease.N + tag + deploy DEV
+#   release/X.Y.Z  -> build/push imagen X.Y.Z-rc.N + tag + deploy PRE + PR automatico a main
+#   hotfix/X.Y.Z   -> idem release (sin cambios propios = noop)
+#   main           -> retag imagen X.Y.Z (sin rebuild) + deploy PRE + deploy PRO (gated) + tag/Release + sync a develop
+# Version: .github/scripts/semver.sh (Conventional Commits + version.json como suelo).
+#
+# Secret opcional GITFLOW_TOKEN (PAT o GitHub App): si existe, los pushes/PRs que hace el pipeline
+# disparan workflows con normalidad. Si no, se usa GITHUB_TOKEN y se re-dispara via workflow_dispatch.
 
 on:
   push:
-    branches:
-      - develop
-      - main
-      - 'feature/**'
-      - 'release/**'
-      - 'hotfix/**'
+    branches: [develop, main, 'feature/**', 'release/**', 'hotfix/**']
   pull_request:
-    branches:
-      - develop
-      - main
-      - 'release/**'
+    branches: [develop, main, 'release/**']
   workflow_dispatch:
     inputs:
       fail_pro_deploy:
-        description: 'Simular fallo en Deploy PRO (el sync a develop NO debe ejecutarse)'
+        description: 'Simular fallo en Deploy PRO (no debe haber tag/Release ni sync)'
         type: boolean
         default: false
 
 permissions:
-  contents: write        # tags, releases, push a develop
-  pull-requests: write   # PR de sync si hay conflicto
-  actions: write         # re-disparar develop tras el sync
+  contents: write
+  pull-requests: write
+  actions: write
 
-# Una ejecucion a la vez por rama; nunca cancelar (evita tags duplicados / deploys a medias)
+# Una ejecucion a la vez por rama; nunca cancelar (evita tags duplicados y deploys a medias)
 concurrency:
   group: gitflow-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: false
 
+env:
+  ACR: acrlab.azurecr.io   # dummy
+  APP: gui-lab
+
 jobs:
-  # ───────────────────────── Versionado automatico ─────────────────────────
+  # ───────────── Versionado automatico ─────────────
   setup:
     name: Calcular version
     runs-on: ubuntu-latest
@@ -47,6 +47,7 @@ jobs:
       kind: ${{ steps.semver.outputs.kind }}
       version: ${{ steps.semver.outputs.version }}
       tag: ${{ steps.semver.outputs.tag }}
+      image_tag: ${{ steps.semver.outputs.image_tag }}
       rc_tag: ${{ steps.semver.outputs.rc_tag }}
     steps:
       - uses: actions/checkout@v4
@@ -55,23 +56,22 @@ jobs:
       - run: git fetch --tags --force
       - id: semver
         env:
-          # En PR no se versiona: solo checks
           BRANCH: ${{ github.event_name == 'pull_request' && 'pr-check' || github.ref_name }}
         run: .github/scripts/semver.sh "$BRANCH" version.json
       - name: Resumen
         run: |
           {
             echo "### Version"
-            echo "| kind | version | tag |"
-            echo "|---|---|---|"
-            echo "| ${{ steps.semver.outputs.kind }} | ${{ steps.semver.outputs.version }} | ${{ steps.semver.outputs.tag }} |"
+            echo "| kind | version | tag | imagen |"
+            echo "|---|---|---|---|"
+            echo "| ${{ steps.semver.outputs.kind }} | ${{ steps.semver.outputs.version }} | ${{ steps.semver.outputs.tag }} | ${{ steps.semver.outputs.image_tag }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # ───────────────── feature/* , PRs y develop: calidad ─────────────────
+  # ───────────── Calidad: feature/*, PRs y develop ─────────────
   unit-tests:
     name: Unit tests (dummy)
     needs: setup
-    if: needs.setup.outputs.kind != 'release'   # en main no se re-testea: se promociona
+    if: needs.setup.outputs.kind == 'feature' || needs.setup.outputs.kind == 'prerelease'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -91,24 +91,28 @@ jobs:
           sleep 2
           echo "Quality Gate: PASSED"
 
-  # ───────────────── develop / release / hotfix: build + tag ─────────────────
+  # ───────────── develop / release / hotfix: imagen + tag ─────────────
   build:
-    name: Build (dummy)
+    name: Build + push imagen (dummy)
     needs: [setup, unit-tests, sonarqube]
-    if: github.event_name != 'pull_request' && (needs.setup.outputs.kind == 'prerelease' || needs.setup.outputs.kind == 'rc')
+    # rc: sin tests/sonar (ya pasaron en develop). prerelease: exige sonar OK.
+    if: |
+      !cancelled() && github.event_name != 'pull_request' && needs.setup.result == 'success' &&
+      (needs.setup.outputs.kind == 'rc' ||
+       (needs.setup.outputs.kind == 'prerelease' && needs.sonarqube.result == 'success'))
     runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.img.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
-      - name: Build imagen dummy ${{ needs.setup.outputs.tag }}
+      - id: img
         run: |
-          echo "docker build -t lab-mode:${{ needs.setup.outputs.tag }} ."
-          mkdir -p dist
-          echo "image=lab-mode:${{ needs.setup.outputs.tag }} sha=${GITHUB_SHA}" > dist/image.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: image-${{ needs.setup.outputs.tag }}
-          path: dist/
-          retention-days: 7
+          IMG="$ACR/$APP:${{ needs.setup.outputs.image_tag }}"
+          echo "docker build -t $IMG ."
+          echo "docker push $IMG"
+          DIGEST="sha256:$(echo -n "$IMG$GITHUB_SHA" | sha256sum | cut -d' ' -f1)"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "Imagen $IMG ($DIGEST)" >> "$GITHUB_STEP_SUMMARY"
 
   tag:
     name: Tag ${{ needs.setup.outputs.tag }}
@@ -118,15 +122,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Crear y publicar tag
-        run: |
+          token: ${{ secrets.GITFLOW_TOKEN || github.token }}
+      - run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "${{ needs.setup.outputs.tag }}" -m "${{ needs.setup.outputs.tag }}" "$GITHUB_SHA"
           git push origin "${{ needs.setup.outputs.tag }}"
-          echo "Tag publicado: ${{ needs.setup.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
 
-  # ───────────────── develop -> DEV ─────────────────
   deploy-dev:
     name: Deploy DEV (dummy)
     needs: [setup, tag]
@@ -135,48 +137,84 @@ jobs:
     environment: dev
     steps:
       - run: |
-          echo "helm upgrade lab-mode --set image.tag=${{ needs.setup.outputs.tag }} -n dev"
-          echo "Desplegado ${{ needs.setup.outputs.tag }} en DEV"
-
-  # ───────────────── release/* y hotfix/* -> PRE ─────────────────
-  publish-artifacts:
-    name: Publish artifacts (dummy)
-    needs: [setup, tag]
-    if: needs.setup.outputs.kind == 'rc'
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          echo "docker push registry/lab-mode:${{ needs.setup.outputs.tag }}"
-          echo "Imagen publicada en el registry"
+          echo "helm upgrade --install $APP chart/ -n dev --atomic --wait --set image.tag=${{ needs.setup.outputs.image_tag }}"
+          echo "Desplegado ${{ needs.setup.outputs.image_tag }} en DEV"
 
   deploy-pre:
-    name: Deploy PRE (dummy)
-    needs: [setup, publish-artifacts]
+    name: Deploy PRE rc (dummy)
+    needs: [setup, tag]
     if: needs.setup.outputs.kind == 'rc'
     runs-on: ubuntu-latest
     environment: pre
     steps:
       - run: |
-          echo "helm upgrade lab-mode --set image.tag=${{ needs.setup.outputs.tag }} -n pre"
-          echo "Desplegado ${{ needs.setup.outputs.tag }} en PRE"
+          echo "helm upgrade --install $APP chart/ -n pre --atomic --wait --set image.tag=${{ needs.setup.outputs.image_tag }}"
+          echo "Desplegado ${{ needs.setup.outputs.image_tag }} en PRE"
 
-  # ───────────────── main -> PRO (retag, sin rebuild) ─────────────────
+  # PR automatico a main solo cuando PRE esta OK
+  open-pr:
+    name: Abrir PR a main
+    needs: [setup, deploy-pre]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          GH_TOKEN: ${{ secrets.GITFLOW_TOKEN || github.token }}
+          BR: ${{ github.ref_name }}
+          VERSION: ${{ needs.setup.outputs.version }}
+        run: |
+          EXISTING=$(gh pr list --head "$BR" --base main --state open --json number -q '.[0].number')
+          if [[ -n "$EXISTING" ]]; then echo "PR #$EXISTING ya existe"; exit 0; fi
+          gh pr create --base main --head "$BR" \
+            --title "chore(release): v$VERSION" \
+            --body "Deploy PRE OK con ${{ needs.setup.outputs.tag }}. Mergear con **merge commit** (no squash) para promocionar a PRO."
+
+  # ───────────── main -> PRE (X.Y.Z) -> PRO (retag, sin rebuild) ─────────────
   retag:
     name: Retag imagen (dummy)
     needs: setup
     if: needs.setup.outputs.kind == 'release'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Retag ${{ needs.setup.outputs.rc_tag }} -> ${{ needs.setup.outputs.tag }}
+      - run: |
+          RC="${{ needs.setup.outputs.rc_tag }}"; RC="${RC#v}"
+          echo "az acr import --name acrlab --source $ACR/$APP:$RC --image $APP:${{ needs.setup.outputs.image_tag }} --force"
+          echo "Misma imagen (mismo digest), sin rebuild"
+
+  deploy-pre-final:
+    name: Deploy PRE X.Y.Z (dummy)
+    needs: [setup, retag]
+    runs-on: ubuntu-latest
+    environment: pre
+    steps:
+      - run: |
+          echo "helm upgrade --install $APP chart/ -n pre --atomic --wait --set image.tag=${{ needs.setup.outputs.image_tag }}"
+
+  deploy-pro:
+    name: Deploy PRO (dummy, gated)
+    needs: [setup, deploy-pre-final]
+    runs-on: ubuntu-latest
+    # Settings > Environments > pro > Required reviewers  (Gated approval)
+    environment: pro
+    steps:
+      - run: |
+          echo "helm upgrade --install $APP chart/ -n pro --atomic --wait --set image.tag=${{ needs.setup.outputs.image_tag }}"
+          echo "Desplegado ${{ needs.setup.outputs.image_tag }} en PRO"
+      - name: Simular fallo
+        if: github.event.inputs.fail_pro_deploy == 'true'
         run: |
-          echo "docker buildx imagetools create -t registry/lab-mode:${{ needs.setup.outputs.tag }} registry/lab-mode:${{ needs.setup.outputs.rc_tag }}"
-          echo "Misma imagen, sin rebuild"
-      - name: Tag estable + GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
+          echo "::error::Fallo simulado en Deploy PRO"
+          exit 1
+
+  # Tag estable + Release: SOLO si el deploy a PRO fue OK
+  release:
+    name: Tag + Release ${{ needs.setup.outputs.tag }}
+    needs: [setup, deploy-pro]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - env:
+          GH_TOKEN: ${{ secrets.GITFLOW_TOKEN || github.token }}
         run: |
           gh release view "${{ needs.setup.outputs.tag }}" >/dev/null 2>&1 || \
           gh release create "${{ needs.setup.outputs.tag }}" \
@@ -184,36 +222,21 @@ jobs:
             --title "${{ needs.setup.outputs.tag }}" \
             --generate-notes
 
-  deploy-pro:
-    name: Deploy PRO (dummy, gated)
-    needs: [setup, retag]
-    runs-on: ubuntu-latest
-    # Configurar "Required reviewers" en Settings > Environments > pro  (Gated approval)
-    environment: pro
-    steps:
-      - name: Deploy
-        run: |
-          echo "helm upgrade lab-mode --set image.tag=${{ needs.setup.outputs.tag }} -n pro"
-          echo "Desplegado ${{ needs.setup.outputs.tag }} en PRO"
-      - name: Simular fallo (workflow_dispatch fail_pro_deploy)
-        if: github.event.inputs.fail_pro_deploy == 'true'
-        run: |
-          echo "::error::Fallo simulado en Deploy PRO"
-          exit 1
-
-  # ───────────────── Sync main -> develop (solo tras Deploy OK en PRO) ─────────────────
+  # main -> develop solo tras Deploy PRO OK
   sync-develop:
     name: Merge main -> develop
-    needs: [setup, deploy-pro]
+    needs: [setup, release]
     runs-on: ubuntu-latest
+    env:
+      HAS_PAT: ${{ secrets.GITFLOW_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Merge main en develop
-        id: merge
+          token: ${{ secrets.GITFLOW_TOKEN || github.token }}
+      - id: merge
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GITFLOW_TOKEN || github.token }}
           TAG: ${{ needs.setup.outputs.tag }}
         run: |
           git config user.name  "github-actions[bot]"
@@ -221,8 +244,7 @@ jobs:
           git checkout develop
           if git merge --no-ff origin/main -m "chore: sync main ($TAG) into develop"; then
             if git push origin develop; then
-              echo "mode=direct" >> "$GITHUB_OUTPUT"
-              exit 0
+              echo "mode=direct" >> "$GITHUB_OUTPUT"; exit 0
             fi
             echo "Push directo rechazado (rama protegida?), abriendo PR"
           else
@@ -235,8 +257,8 @@ jobs:
             --title "chore: sync main ($TAG) into develop" \
             --body "Back-merge automatico tras Deploy OK en PRO de $TAG." || true
           echo "mode=pr" >> "$GITHUB_OUTPUT"
-      - name: Re-disparar develop (los pushes con GITHUB_TOKEN no disparan workflows)
-        if: steps.merge.outputs.mode == 'direct'
+      - name: Re-disparar develop (sin PAT los pushes no disparan workflows)
+        if: steps.merge.outputs.mode == 'direct' && env.HAS_PAT != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run gitflow.cicd.yaml --ref develop

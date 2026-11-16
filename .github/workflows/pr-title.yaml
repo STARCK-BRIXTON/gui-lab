@@ -1,0 +1,22 @@
+name: PR title
+
+# El titulo del PR (que pasa a ser el commit del squash) debe seguir Conventional Commits:
+# de ahi sale el bump automatico (feat -> minor, fix -> patch, ! -> major).
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches: [develop]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          RE='^(feat|fix|perf|refactor|docs|test|build|ci|chore|revert)(\([^)]+\))?!?: .+'
+          if [[ ! "$TITLE" =~ $RE ]]; then
+            echo "::error::Titulo invalido: '$TITLE'. Formato: tipo(scope)?: descripcion  (feat|fix|chore|...)"
+            exit 1
+          fi
