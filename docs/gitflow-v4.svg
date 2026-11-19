@@ -1,0 +1,167 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1160" height="1690" viewBox="0 0 1160 1690" font-family="Helvetica, Arial, sans-serif">
+<defs><marker id="ar" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M1,1 L9,5 L1,9" fill="none" stroke="#1b2a3a" stroke-width="1.6"/></marker></defs>
+<rect width="1160" height="1690" fill="#fff"/>
+<rect x="0" y="56" width="70" height="284" fill="#0b6fd6"/>
+<text transform="translate(40,198.0) rotate(-90)" text-anchor="middle" font-size="17" font-weight="700" fill="#ffffff">feature/*</text>
+<line x1="70" x2="1160" y1="56" y2="56" stroke="#d5d9de"/>
+<rect x="0" y="340" width="70" height="430" fill="#b3d4f7"/>
+<text transform="translate(40,555.0) rotate(-90)" text-anchor="middle" font-size="17" font-weight="700" fill="#1b2a3a">develop</text>
+<line x1="70" x2="1160" y1="340" y2="340" stroke="#d5d9de"/>
+<rect x="0" y="770" width="70" height="290" fill="#fde0cd"/>
+<text transform="translate(40,915.0) rotate(-90)" text-anchor="middle" font-size="17" font-weight="700" fill="#1b2a3a">release/*</text>
+<line x1="70" x2="1160" y1="770" y2="770" stroke="#d5d9de"/>
+<rect x="0" y="1060" width="70" height="250" fill="#f4a96d"/>
+<text transform="translate(40,1185.0) rotate(-90)" text-anchor="middle" font-size="17" font-weight="700" fill="#1b2a3a">hotfix/*</text>
+<line x1="70" x2="1160" y1="1060" y2="1060" stroke="#d5d9de"/>
+<rect x="0" y="1310" width="70" height="380" fill="#e0710f"/>
+<text transform="translate(40,1500.0) rotate(-90)" text-anchor="middle" font-size="17" font-weight="700" fill="#ffffff">main</text>
+<line x1="70" x2="1160" y1="1310" y2="1310" stroke="#d5d9de"/>
+<rect x="70" y="0" width="360" height="56" fill="#1b2a3a"/><text x="86" y="34" font-size="18" font-weight="700" fill="#fff">Entorno Develop</text>
+<line x1="430" x2="430" y1="56" y2="1690" stroke="#d5d9de"/>
+<rect x="430" y="0" width="360" height="56" fill="#1b2a3a"/><text x="446" y="34" font-size="18" font-weight="700" fill="#fff">Entorno Pre-producción</text>
+<line x1="790" x2="790" y1="56" y2="1690" stroke="#d5d9de"/>
+<rect x="790" y="0" width="360" height="56" fill="#1b2a3a"/><text x="806" y="34" font-size="18" font-weight="700" fill="#fff">Entorno Producción</text>
+<line x1="1150" x2="1150" y1="56" y2="1690" stroke="#d5d9de"/>
+<circle cx="120" cy="120" r="26" fill="#0b6fd6" stroke="#1b2a3a" stroke-width="2"/>
+<g stroke="#1b2a3a" stroke-width="2" fill="none"><circle cx="114" cy="128" r="3.5"/><circle cx="128" cy="115" r="3.5"/><path d="M114,124.5 V108"/><path d="M128,118.5 C128,123 114,120 114,124.5"/></g>
+<text x="120" y="164" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">feature/*</text>
+<rect x="195.0" y="91.0" width="190" height="38" rx="19.0" fill="#cfe3fb" stroke="#1f6fd1" stroke-width="1.6"/>
+<text x="290" y="115" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">Push</text>
+<rect x="195.0" y="151.0" width="190" height="38" rx="19.0" fill="#cfe3fb" stroke="#1f6fd1" stroke-width="1.6"/>
+<text x="290" y="175" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">Unit tests</text>
+<rect x="195.0" y="211.0" width="190" height="38" rx="19.0" fill="#cfe3fb" stroke="#1f6fd1" stroke-width="1.6"/>
+<text x="290" y="235" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">SonarQube</text>
+<polyline points="146,120 195,110" fill="none" stroke="#1b2a3a" stroke-width="1.8" marker-end="url(#ar)"/>
+<polyline points="290,129 290,151" fill="none" stroke="#1b2a3a" stroke-width="1.8" marker-end="url(#ar)"/>
+<polyline points="290,189 290,211" fill="none" stroke="#1b2a3a" stroke-width="1.8" marker-end="url(#ar)"/>
+<circle cx="425" cy="110" r="12" fill="#1b2a3a"/><text x="425" y="114" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">1</text>
+<g stroke="#1b2a3a" stroke-width="1.8" fill="#fff"><circle cx="620" cy="136" r="9"/><path d="M605,160 a15,15 0 0 1 30,0 z"/></g>
+<text x="620" y="178" text-anchor="middle" font-size="13" font-weight="700" fill="#1b2a3a">Merge request</text>
+<text x="620" y="112" text-anchor="middle" font-size="11" fill="#33475b">a develop (squash) · título Conventional Commits</text>
+<polyline points="385,230 620,230 620,196" fill="none" stroke="#1b2a3a" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#ar)"/>
+<circle cx="700" cy="150" r="12" fill="#1b2a3a"/><text x="700" y="154" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">2</text>
+<polyline points="620,232 620,385 280,385" fill="none" stroke="#1b2a3a" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#ar)"/>
+<circle cx="250" cy="385" r="26" fill="#b3d4f7" stroke="#1b2a3a" stroke-width="2"/>
+<g stroke="#1b2a3a" stroke-width="2" fill="none"><circle cx="244" cy="393" r="3.5"/><circle cx="258" cy="380" r="3.5"/><path d="M244,389.5 V373"/><path d="M258,383.5 C258,388 244,385 244,389.5"/></g>
+<text x="250" y="429" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">develop</text>
+<circle cx="200" cy="370" r="12" fill="#1b2a3a"/><text x="200" y="374" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">3</text>
+<polyline points="250,440 250,459" fill="none" stroke="#1b2a3a" stroke-width="1.8" marker-end="url(#ar)"/>
+<rect x="135.0" y="459.0" width="230" height="38" rx="19.0" fill="#b3d4f7" stroke="#1f6fd1" stroke-width="1.6"/>
+<text x="250" y="483" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">Unit tests</text>
+<rect x="135.0" y="507.0" width="230" height="38" rx="19.0" fill="#b3d4f7" stroke="#1f6fd1" stroke-width="1.6"/>
+<text x="250" y="531" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">SonarQube</text>
+<rect x="135.0" y="561.0" width="230" height="46" rx="23.0" fill="#b3d4f7" stroke="#1f6fd1" stroke-width="1.6"/>
+<text x="250" y="581" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">Build + push imagen</text>
+<text x="250" y="597" text-anchor="middle" font-size="11" fill="#33475b">imagen X.Y.Z-prerelease.N</text>
+<rect x="135.0" y="617.0" width="230" height="38" rx="19.0" fill="#b3d4f7" stroke="#1f6fd1" stroke-width="1.6"/>
+<text x="250" y="641" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">Scan imagen · anchore/scan</text>
+<rect x="135.0" y="667.0" width="230" height="46" rx="23.0" fill="#b3d4f7" stroke="#1f6fd1" stroke-width="1.6"/>
+<text x="250" y="687" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">Deploy DEV</text>
+<text x="250" y="703" text-anchor="middle" font-size="11" fill="#33475b">imagen X.Y.Z-prerelease.N</text>
+<polyline points="250,497 250,507" fill="none" stroke="#1b2a3a" stroke-width="1.8" marker-end="url(#ar)"/>
+<polyline points="250,545 250,561" fill="none" stroke="#1b2a3a" stroke-width="1.8" marker-end="url(#ar)"/>
+<polyline points="250,607 250,617" fill="none" stroke="#1b2a3a" stroke-width="1.8" marker-end="url(#ar)"/>
+<polyline points="250,655 250,667" fill="none" stroke="#1b2a3a" stroke-width="1.8" marker-end="url(#ar)"/>
+<circle cx="385" cy="636" r="12" fill="#1b2a3a"/><text x="385" y="640" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">4</text>
+<circle cx="385" cy="668" r="12" fill="#1b2a3a"/><text x="385" y="672" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">5</text>
+<rect x="495.0" y="649.0" width="250" height="46" rx="23.0" fill="#b3d4f7" stroke="#1f6fd1" stroke-width="1.6"/>
+<text x="620" y="669" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">Clone imagen dev → pre</text>
+<text x="620" y="685" text-anchor="middle" font-size="11" fill="#33475b">X.Y.Z-rc.N + sha-xxxxxxx (mismo digest)</text>
+<polyline points="365,690 480,690 480,672 495,672" fill="none" stroke="#1b2a3a" stroke-width="1.8" marker-end="url(#ar)"/>
+<rect x="500.0" y="614" width="240" height="24" rx="4" fill="#efe8fb" stroke="#7c4dca" stroke-dasharray="4 3"/>
+<text x="620" y="630" text-anchor="middle" font-size="12" font-weight="700" fill="#4b2a99">rc.N = tag de imagen (ACR), no de git</text>
+<circle cx="760" cy="650" r="12" fill="#1b2a3a"/><text x="760" y="654" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">6</text>
+<rect x="495.0" y="710.0" width="250" height="46" rx="23.0" fill="#b3d4f7" stroke="#1f6fd1" stroke-width="1.6"/>
+<text x="620" y="730" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">Deploy PRE</text>
+<text x="620" y="746" text-anchor="middle" font-size="11" fill="#33475b">OK = commit validado en PRE</text>
+<polyline points="620,695 620,710" fill="none" stroke="#1b2a3a" stroke-width="1.8" marker-end="url(#ar)"/>
+<circle cx="760" cy="733" r="12" fill="#1b2a3a"/><text x="760" y="737" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">7</text>
+<text x="115" y="748" text-anchor="start" font-size="11" fill="#33475b">cada merge a develop actualiza DEV y PRE</text>
+<text x="115" y="762" text-anchor="start" font-size="11" fill="#33475b">(PRE congelado si hay release/hotfix abierto)</text>
+<circle cx="150" cy="830" r="26" fill="#fde0cd" stroke="#1b2a3a" stroke-width="2"/>
+<g stroke="#1b2a3a" stroke-width="2" fill="none"><circle cx="144" cy="838" r="3.5"/><circle cx="158" cy="825" r="3.5"/><path d="M144,834.5 V818"/><path d="M158,828.5 C158,833 144,830 144,834.5"/></g>
+<text x="150" y="874" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">release/X.Y.Z</text>
+<circle cx="110" cy="800" r="12" fill="#1b2a3a"/><text x="110" y="804" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">8</text>
+<polyline points="226,395 100,395 100,830 124,830" fill="none" stroke="#1b2a3a" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#ar)"/>
+<rect x="495.0" y="807.0" width="250" height="46" rx="23.0" fill="#fde0cd" stroke="#d9772e" stroke-width="1.6"/>
+<text x="620" y="827" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">Clone imagen pre → pro</text>
+<text x="620" y="843" text-anchor="middle" font-size="11" fill="#33475b">sha-xxxxxxx → X.Y.Z (sin rebuild)</text>
+<polyline points="176,830 495,830" fill="none" stroke="#1b2a3a" stroke-width="1.8" marker-end="url(#ar)"/>
+<polyline points="620,756 620,807" fill="none" stroke="#1b2a3a" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#ar)"/>
+<circle cx="760" cy="805" r="12" fill="#1b2a3a"/><text x="760" y="809" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">9</text>
+<g stroke="#1b2a3a" stroke-width="1.8" fill="#fff"><circle cx="880" cy="816" r="9"/><path d="M865,840 a15,15 0 0 1 30,0 z"/></g>
+<text x="880" y="858" text-anchor="middle" font-size="13" font-weight="700" fill="#1b2a3a">Gated approval</text>
+<polyline points="745,830 850,830" fill="none" stroke="#1b2a3a" stroke-width="1.8" marker-end="url(#ar)"/>
+<circle cx="935" cy="815" r="12" fill="#1b2a3a"/><text x="935" y="819" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">10</text>
+<rect x="805.0" y="917.0" width="150" height="46" rx="23.0" fill="#fde0cd" stroke="#d9772e" stroke-width="1.6"/>
+<text x="880" y="937" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">Deploy PRO</text>
+<text x="880" y="953" text-anchor="middle" font-size="11" fill="#33475b">imagen X.Y.Z</text>
+<polyline points="880,862 880,917" fill="none" stroke="#1b2a3a" stroke-width="1.8" marker-end="url(#ar)"/>
+<circle cx="980" cy="925" r="12" fill="#1b2a3a"/><text x="980" y="929" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">11</text>
+<text x="215" y="905" text-anchor="start" font-size="11" fill="#33475b">«Release» corta en el último commit validado en PRE</text>
+<text x="215" y="921" text-anchor="start" font-size="11" fill="#33475b">(deployment OK en pre): no construye, promueve esa imagen</text>
+<text x="215" y="945" text-anchor="start" font-size="11" fill="#33475b">fix en release/*: tests + sonar + build + scan → rc.N+1 → PRE</text>
+<circle cx="150" cy="1130" r="26" fill="#f7be90" stroke="#1b2a3a" stroke-width="2"/>
+<g stroke="#1b2a3a" stroke-width="2" fill="none"><circle cx="144" cy="1138" r="3.5"/><circle cx="158" cy="1125" r="3.5"/><path d="M144,1134.5 V1118"/><path d="M158,1128.5 C158,1133 144,1130 144,1134.5"/></g>
+<text x="150" y="1174" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">hotfix/X.Y.Z+1</text>
+<circle cx="110" cy="1100" r="15" fill="#1b2a3a"/><text x="110" y="1104" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">HF1</text>
+<polyline points="914,1430 100,1430 100,1130 124,1130" fill="none" stroke="#1b2a3a" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#ar)"/>
+<rect x="197.0" y="1111.0" width="130" height="38" rx="19.0" fill="#f7be90" stroke="#d9772e" stroke-width="1.6"/>
+<text x="262" y="1135" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">Tests + Sonar</text>
+<polyline points="176,1130 197,1130" fill="none" stroke="#1b2a3a" stroke-width="1.8" marker-end="url(#ar)"/>
+<circle cx="262" cy="1098" r="15" fill="#1b2a3a"/><text x="262" y="1102" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">HF2</text>
+<rect x="345.0" y="1107.0" width="130" height="46" rx="23.0" fill="#f7be90" stroke="#d9772e" stroke-width="1.6"/>
+<text x="410" y="1127" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">Build + push</text>
+<text x="410" y="1143" text-anchor="middle" font-size="11" fill="#33475b">imagen X.Y.Z+1-rc.N</text>
+<polyline points="327,1130 345,1130" fill="none" stroke="#1b2a3a" stroke-width="1.8" marker-end="url(#ar)"/>
+<circle cx="410" cy="1098" r="15" fill="#1b2a3a"/><text x="410" y="1102" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">HF3</text>
+<rect x="315.0" y="1170" width="190" height="24" rx="4" fill="#efe8fb" stroke="#7c4dca" stroke-dasharray="4 3"/>
+<text x="410" y="1186" text-anchor="middle" font-size="12" font-weight="700" fill="#4b2a99">rc.N = tag de imagen (ACR)</text>
+<rect x="495.0" y="1107.0" width="120" height="46" rx="23.0" fill="#f7be90" stroke="#d9772e" stroke-width="1.6"/>
+<text x="555" y="1127" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">Scan imagen</text>
+<text x="555" y="1143" text-anchor="middle" font-size="11" fill="#33475b">anchore/scan</text>
+<polyline points="475,1130 495,1130" fill="none" stroke="#1b2a3a" stroke-width="1.8" marker-end="url(#ar)"/>
+<circle cx="555" cy="1098" r="15" fill="#1b2a3a"/><text x="555" y="1102" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">HF4</text>
+<rect x="635.0" y="1107.0" width="130" height="46" rx="23.0" fill="#f7be90" stroke="#d9772e" stroke-width="1.6"/>
+<text x="700" y="1127" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">Deploy PRE</text>
+<text x="700" y="1143" text-anchor="middle" font-size="11" fill="#33475b">imagen X.Y.Z+1-rc.N</text>
+<polyline points="615,1130 635,1130" fill="none" stroke="#1b2a3a" stroke-width="1.8" marker-end="url(#ar)"/>
+<circle cx="700" cy="1098" r="15" fill="#1b2a3a"/><text x="700" y="1102" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">HF5</text>
+<g stroke="#1b2a3a" stroke-width="1.8" fill="#fff"><circle cx="1050" cy="1116" r="9"/><path d="M1035,1140 a15,15 0 0 1 30,0 z"/></g>
+<text x="1050" y="1158" text-anchor="middle" font-size="13" font-weight="700" fill="#1b2a3a">Gated approval</text>
+<polyline points="765,1130 1020,1130" fill="none" stroke="#1b2a3a" stroke-width="1.8" marker-end="url(#ar)"/>
+<circle cx="975" cy="1110" r="15" fill="#1b2a3a"/><text x="975" y="1114" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">HF6</text>
+<rect x="975.0" y="1217.0" width="150" height="46" rx="23.0" fill="#f7be90" stroke="#d9772e" stroke-width="1.6"/>
+<text x="1050" y="1237" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">Deploy PRO</text>
+<text x="1050" y="1253" text-anchor="middle" font-size="11" fill="#33475b">imagen X.Y.Z+1</text>
+<polyline points="1050,1162 1050,1217" fill="none" stroke="#1b2a3a" stroke-width="1.8" marker-end="url(#ar)"/>
+<circle cx="950" cy="1215" r="15" fill="#1b2a3a"/><text x="950" y="1219" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">HF7</text>
+<text x="115" y="1272" text-anchor="start" font-size="11" fill="#33475b">se despliega a PRO desde su propia rama y se sincroniza</text>
+<text x="115" y="1288" text-anchor="start" font-size="11" fill="#33475b">con develop y con la release abierta</text>
+<polyline points="880,963 880,1385 970,1385 970,1404" fill="none" stroke="#1b2a3a" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#ar)"/>
+<polyline points="1050,1263 1050,1385 975,1385" fill="none" stroke="#1b2a3a" stroke-width="1.8" stroke-dasharray="6 4"/>
+<text x="868" y="1372" text-anchor="end" font-size="11" fill="#33475b">merge a main solo si PRO OK</text>
+<circle cx="970" cy="1430" r="26" fill="#e0710f" stroke="#1b2a3a" stroke-width="2"/>
+<g stroke="#1b2a3a" stroke-width="2" fill="none"><circle cx="964" cy="1438" r="3.5"/><circle cx="978" cy="1425" r="3.5"/><path d="M964,1434.5 V1418"/><path d="M978,1428.5 C978,1433 964,1430 964,1434.5"/></g>
+<text x="970" y="1474" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">main</text>
+<circle cx="1020" cy="1405" r="12" fill="#1b2a3a"/><text x="1020" y="1409" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">12</text>
+<rect x="1030.0" y="1418" width="90" height="24" rx="4" fill="#efe8fb" stroke="#7c4dca" stroke-dasharray="4 3"/>
+<text x="1075" y="1434" text-anchor="middle" font-size="12" font-weight="700" fill="#4b2a99">vX.Y.Z</text>
+<rect x="860.0" y="1507.0" width="220" height="46" rx="23.0" fill="#fde0cd" stroke="#c25e00" stroke-width="1.6"/>
+<text x="970" y="1527" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">Tag vX.Y.Z + Release</text>
+<text x="970" y="1543" text-anchor="middle" font-size="11" fill="#33475b">sobre el merge commit</text>
+<polyline points="970,1478 970,1507" fill="none" stroke="#1b2a3a" stroke-width="1.8" marker-end="url(#ar)"/>
+<rect x="860.0" y="1597.0" width="220" height="46" rx="23.0" fill="#fde0cd" stroke="#c25e00" stroke-width="1.6"/>
+<text x="970" y="1617" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">Merge to develop</text>
+<text x="970" y="1633" text-anchor="middle" font-size="11" fill="#33475b">sync main → develop</text>
+<polyline points="970,1553 970,1597" fill="none" stroke="#1b2a3a" stroke-width="1.8" marker-end="url(#ar)"/>
+<circle cx="1100" cy="1620" r="12" fill="#1b2a3a"/><text x="1100" y="1624" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">13</text>
+<polyline points="1080,1620 1135,1620 1135,392 280,392" fill="none" stroke="#1b2a3a" stroke-width="1.8" stroke-dasharray="6 4" marker-end="url(#ar)"/>
+<text transform="translate(1150,1000) rotate(-90)" text-anchor="middle" font-size="12" fill="#33475b">solo tras Deploy OK en PRO (release y hotfix)</text>
+<rect x="470" y="1470" width="330" height="130" rx="8" fill="#fff7ee" stroke="#c25e00"/>
+<text x="635" y="1498" text-anchor="middle" font-size="14" font-weight="700" fill="#1b2a3a">main = siempre lo desplegado en PRO</text>
+<text x="635" y="1522" text-anchor="middle" font-size="11" fill="#33475b">· DEV y PRE se actualizan desde develop (sin tags git)</text>
+<text x="635" y="1540" text-anchor="middle" font-size="11" fill="#33475b">· PRO se despliega desde release/* y hotfix/*</text>
+<text x="635" y="1558" text-anchor="middle" font-size="11" fill="#33475b">· único tag git: vX.Y.Z, tras el deploy OK en PRO</text>
+<text x="635" y="1576" text-anchor="middle" font-size="11" fill="#33475b">· si PRO falla, ni main ni tags se tocan</text>
+</svg>

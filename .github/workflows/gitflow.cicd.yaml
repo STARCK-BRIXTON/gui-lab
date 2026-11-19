@@ -1,18 +1,21 @@
 name: GitFlow CI/CD (dummy)
 
-# Pipeline dummy de docs/gitflow-v3.png. Docker/ACR/AKS/Helm/Sonar/Anchore son `echo`;
-# lo real es el versionado, el tageo, la promocion y la sincronizacion de ramas.
+# Pipeline dummy de docs/gitflow-v4.png. Docker/ACR/AKS/Helm/Sonar/Anchore son `echo`;
+# lo real es el versionado, la promocion y la sincronizacion de ramas.
+#
+# TAGS: en git solo existe vX.Y.Z (lo crea `finalize` tras PRO OK). prerelease.N y rc.N son tags de IMAGEN en el ACR.
+# "Validado en PRE" = deployment OK en el environment `pre` (scripts/validated.sh), no un tag.
 #
 #   feature/*, PR a develop -> unit tests + sonar
-#   develop                 -> tests + sonar + build/push X.Y.Z-prerelease.N + scan + tag prerelease
-#                              -> deploy DEV -> clone a PRE (X.Y.Z-rc.N, mismo digest) -> deploy PRE -> tag rc
+#   develop                 -> tests + sonar + build/push X.Y.Z-prerelease.N + scan
+#                              -> deploy DEV -> clone a PRE (X.Y.Z-rc.N, mismo digest) -> deploy PRE
 #                              (PRE se congela mientras haya release/* o hotfix/* abierto)
-#   release/X.Y.Z           -> corta "Cut release" en el ultimo commit con tag rc: NO construye, solo promociona.
-#                              Con un fix nuevo: tests + sonar + build + scan + rc.N+1 -> PRE -> promociona.
+#   release/X.Y.Z           -> "Release" corta en el ultimo commit validado en PRE: NO construye, solo promociona.
+#                              Con un fix nuevo: tests + sonar + build + scan + rc.N -> PRE -> promociona.
 #   hotfix/X.Y.Z            -> tests + sonar + build + scan + rc.N -> PRE -> promociona
-#   promocion               -> clone pre->pro (X.Y.Z) -> aprobacion gated -> deploy PRO desde la rama
+#   promocion               -> clone pre->pro (sha-<sha7> -> X.Y.Z) -> aprobacion gated -> deploy PRO desde la rama
 #                              -> SOLO si PRO OK: merge a main + tag vX.Y.Z + Release + sync develop
-# Version y kind: .github/scripts/semver.sh. Tag rc = "commit validado en PRE".
+# Version y kind: .github/scripts/semver.sh. N del build = github.run_number.
 #
 # Secret opcional GITFLOW_TOKEN (GitHub App/PAT): con el, los pushes del pipeline disparan workflows y
 # pueden saltar proteccion de ramas. Sin el se usa GITHUB_TOKEN y se re-dispara via workflow_dispatch.
@@ -33,8 +36,9 @@ permissions:
   contents: write
   pull-requests: write
   actions: write
+  deployments: read
 
-# Una ejecucion a la vez por rama; nunca cancelar (evita tags duplicados y deploys a medias)
+# Una ejecucion a la vez por rama; nunca cancelar (evita deploys a medias)
 concurrency:
   group: gitflow-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: false
@@ -51,18 +55,30 @@ jobs:
     outputs:
       kind: ${{ steps.semver.outputs.kind }}
       version: ${{ steps.semver.outputs.version }}
-      tag: ${{ steps.semver.outputs.tag }}
-      rc_tag: ${{ steps.semver.outputs.rc_tag }}
       image_tag: ${{ steps.semver.outputs.image_tag }}
+      rc_image: ${{ steps.semver.outputs.rc_image }}
+      sha_tag: ${{ steps.semver.outputs.sha_tag }}
       pre_frozen: ${{ steps.freeze.outputs.frozen }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - run: git fetch --tags --force
+      - name: Validado en PRE? (deployment OK de este commit; solo release/hotfix)
+        id: validated
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "$GITHUB_REF_NAME" == release/* || "$GITHUB_REF_NAME" == hotfix/* ]] && [[ "$GITHUB_EVENT_NAME" != "pull_request" ]]; then
+            echo "pre_validated=$(.github/scripts/validated.sh "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
+          else
+            echo "pre_validated=false" >> "$GITHUB_OUTPUT"
+          fi
       - id: semver
         env:
           BRANCH: ${{ github.event_name == 'pull_request' && 'pr-check' || github.ref_name }}
+          BUILD_N: ${{ github.run_number }}
+          PRE_VALIDATED: ${{ steps.validated.outputs.pre_validated }}
         run: .github/scripts/semver.sh "$BRANCH" version.json
       - name: PRE congelado si hay release/hotfix abierto
         id: freeze
@@ -73,9 +89,9 @@ jobs:
         run: |
           {
             echo "### Version"
-            echo "| kind | version | tag build | rc | imagen | PRE congelado |"
-            echo "|---|---|---|---|---|---|"
-            echo "| ${{ steps.semver.outputs.kind }} | ${{ steps.semver.outputs.version }} | ${{ steps.semver.outputs.tag }} | ${{ steps.semver.outputs.rc_tag }} | ${{ steps.semver.outputs.image_tag }} | ${{ steps.freeze.outputs.frozen }} |"
+            echo "| kind | version | imagen build | imagen PRE | sha | validado en PRE | PRE congelado |"
+            echo "|---|---|---|---|---|---|---|"
+            echo "| ${{ steps.semver.outputs.kind }} | ${{ steps.semver.outputs.version }} | ${{ steps.semver.outputs.image_tag }} | ${{ steps.semver.outputs.rc_image }} | ${{ steps.semver.outputs.sha_tag }} | ${{ steps.validated.outputs.pre_validated }} | ${{ steps.freeze.outputs.frozen }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ───────────── Calidad: feature/*, PRs, develop y fixes de release/hotfix ─────────────
@@ -115,8 +131,9 @@ jobs:
       - id: img
         run: |
           IMG="$ACR/$APP:${{ needs.setup.outputs.image_tag }}"
-          echo "docker build -t $IMG ."
-          echo "docker push $IMG"
+          SHA_IMG="$ACR/$APP:${{ needs.setup.outputs.sha_tag }}"
+          echo "docker build -t $IMG -t $SHA_IMG ."
+          echo "docker push $IMG; docker push $SHA_IMG   # sha-<sha7>: tag inmutable que se promueve"
           DIGEST="sha256:$(echo -n "$IMG$GITHUB_SHA" | sha256sum | cut -d' ' -f1)"
           echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
           echo "Imagen $IMG ($DIGEST)" >> "$GITHUB_STEP_SUMMARY"
@@ -136,27 +153,11 @@ jobs:
       #     fail-build: true
       #     severity-cutoff: high
 
-  tag-prerelease:
-    name: Tag ${{ needs.setup.outputs.tag }}
-    needs: [setup, scan]
-    if: needs.setup.outputs.kind == 'prerelease'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITFLOW_TOKEN || github.token }}
-      - run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          TAG="${{ needs.setup.outputs.tag }}"
-          git tag -a "$TAG" -m "$TAG" "$GITHUB_SHA"
-          git push origin "$TAG"
-
   # ───────────── DEV -> PRE ─────────────
   deploy-dev:
     name: Deploy DEV (dummy)
-    needs: [setup, tag-prerelease]
+    needs: [setup, scan]
+    if: needs.setup.outputs.kind == 'prerelease'
     runs-on: ubuntu-latest
     environment: dev
     concurrency:
@@ -174,7 +175,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: |
-          echo "az acr import --name acrlab-pre --source $ACR/$APP:${{ needs.setup.outputs.image_tag }} --image $APP:${{ needs.setup.outputs.rc_tag }}"
+          echo "az acr import --name acrlab-pre --source $ACR/$APP:${{ needs.setup.outputs.image_tag }} --image $APP:${{ needs.setup.outputs.rc_image }} --image $APP:${{ needs.setup.outputs.sha_tag }}"
           echo "Digest ${{ needs.build.outputs.digest }} (mismo digest, sin rebuild)"
 
   deploy-pre:
@@ -192,41 +193,24 @@ jobs:
       cancel-in-progress: false
     steps:
       - run: |
-          echo "helm upgrade --install $APP chart/ -n pre --atomic --wait --set image.tag=${{ needs.setup.outputs.rc_tag }}"
-          echo "Desplegado ${{ needs.setup.outputs.rc_tag }} en PRE"
-
-  # El tag rc solo existe si el commit se valido en PRE
-  tag-rc:
-    name: Tag ${{ needs.setup.outputs.rc_tag }}
-    needs: [setup, deploy-pre]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITFLOW_TOKEN || github.token }}
-      - run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          TAG="${{ needs.setup.outputs.rc_tag }}"
-          git tag -a "$TAG" -m "$TAG" "$GITHUB_SHA"
-          git push origin "$TAG"
+          echo "helm upgrade --install $APP chart/ -n pre --atomic --wait --set image.tag=${{ needs.setup.outputs.rc_image }}"
+          echo "Desplegado ${{ needs.setup.outputs.rc_image }} en PRE (deployment OK = commit validado en PRE)"
 
   # ───────────── Promocion a PRO desde release/* o hotfix/* ─────────────
   retag:
     name: Clone imagen pre -> pro (dummy)
-    needs: [setup, tag-rc]
-    # promote: HEAD ya tiene rc (no se construye). rc: tras construir y validar el fix en PRE.
+    needs: [setup, deploy-pre]
+    # promote: HEAD ya desplegado OK en PRE (no se construye). rc: tras construir y validar el fix en PRE.
     if: |
       !cancelled() && needs.setup.result == 'success' &&
       (needs.setup.outputs.kind == 'promote' ||
-       (needs.setup.outputs.kind == 'rc' && needs.tag-rc.result == 'success'))
+       (needs.setup.outputs.kind == 'rc' && needs.deploy-pre.result == 'success'))
     runs-on: ubuntu-latest
     steps:
       - run: |
-          RC="${{ needs.setup.outputs.rc_tag }}"; RC="${RC#v}"
-          echo "az acr import --name acrlab-pro --source $ACR/$APP:$RC --image $APP:${{ needs.setup.outputs.version }}"
-          echo "$RC -> ${{ needs.setup.outputs.version }}: mismo digest, sin rebuild"
+          SRC="${{ needs.setup.outputs.sha_tag }}"
+          echo "az acr import --name acrlab-pro --source $ACR/$APP:$SRC --image $APP:${{ needs.setup.outputs.version }}"
+          echo "$SRC -> ${{ needs.setup.outputs.version }}: mismo digest, sin rebuild"
 
   deploy-pro:
     name: Deploy PRO (dummy, gated)
@@ -247,7 +231,7 @@ jobs:
           echo "::error::Fallo simulado en Deploy PRO"
           exit 1
 
-  # Solo tras PRO OK. Idempotente: se puede relanzar con "Re-run failed jobs".
+  # Solo tras PRO OK. Unico tag git: vX.Y.Z. Idempotente: se puede relanzar con "Re-run failed jobs".
   finalize:
     name: Merge a main + tag + Release
     needs: [setup, deploy-pro]

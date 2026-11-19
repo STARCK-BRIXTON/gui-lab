@@ -1,7 +1,7 @@
 name: Release
 
 # Boton unico (Actions > Release > Run workflow): corta release/X.Y.Z en el ULTIMO commit de develop
-# con tag rc (= validado en PRE) y la version sale de ese rc. El push dispara gitflow.cicd.yaml, que
+# validado en PRE (deployment OK en el environment `pre`; no hay tags rc en git) y la version se calcula en ese commit. El push dispara gitflow.cicd.yaml, que
 # NO construye: clone pre->pro, aprobacion gated, deploy PRO y, solo si PRO OK, merge a main + tag + sync.
 
 on:
@@ -10,6 +10,7 @@ on:
 permissions:
   contents: write
   actions: write
+  deployments: read
 
 jobs:
   cut:
@@ -23,19 +24,28 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITFLOW_TOKEN || github.token }}
       - run: git fetch --tags --force
-      - id: rc
-        run: .github/scripts/semver.sh --last-rc version.json
+      - name: Ultimo commit validado en PRE y su version
+        id: rc
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # los scripts y version.json de develop se copian antes de movernos al commit validado
+          cp -r .github/scripts "$RUNNER_TEMP/scripts"; cp version.json "$RUNNER_TEMP/version.json"
+          SHA=$("$RUNNER_TEMP/scripts/validated.sh" --latest origin/develop origin/main)
+          git checkout -q --detach "$SHA"
+          echo "rc_sha=$SHA" >> "$GITHUB_OUTPUT"
+          "$RUNNER_TEMP/scripts/semver.sh" develop "$RUNNER_TEMP/version.json" | grep '^version=' >> "$GITHUB_OUTPUT"
       - name: Validar
         run: |
           OPEN=$(git ls-remote --heads origin 'release/*' | awk '{print $2}' | sed 's#refs/heads/##' | head -1)
           if [[ -n "$OPEN" ]]; then echo "::error::Ya hay una release abierta: $OPEN"; exit 1; fi
-      - name: Crear rama en el ultimo rc validado
+      - name: Crear rama en el ultimo commit validado en PRE
         run: |
           V="${{ steps.rc.outputs.version }}"; SHA="${{ steps.rc.outputs.rc_sha }}"
           git push origin "$SHA:refs/heads/release/$V"
           {
-            echo "Creada release/$V en ${{ steps.rc.outputs.rc_tag }} ($SHA)"
-            if [[ "$SHA" != "$(git rev-parse HEAD)" ]]; then
+            echo "Creada release/$V en el ultimo commit validado en PRE ($SHA)"
+            if [[ "$SHA" != "$(git rev-parse origin/develop)" ]]; then
               echo "Nota: develop tiene commits posteriores sin validar en PRE; no entran en esta release."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
