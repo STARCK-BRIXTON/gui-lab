@@ -1,0 +1,46 @@
+name: Release
+
+# Boton unico (Actions > Release > Run workflow): corta release/X.Y.Z en el ULTIMO commit de develop
+# con tag rc (= validado en PRE) y la version sale de ese rc. El push dispara gitflow.cicd.yaml, que
+# NO construye: clone pre->pro, aprobacion gated, deploy PRO y, solo si PRO OK, merge a main + tag + sync.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  cut:
+    runs-on: ubuntu-latest
+    env:
+      HAS_PAT: ${{ secrets.GITFLOW_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+          token: ${{ secrets.GITFLOW_TOKEN || github.token }}
+      - run: git fetch --tags --force
+      - id: rc
+        run: .github/scripts/semver.sh --last-rc version.json
+      - name: Validar
+        run: |
+          OPEN=$(git ls-remote --heads origin 'release/*' | awk '{print $2}' | sed 's#refs/heads/##' | head -1)
+          if [[ -n "$OPEN" ]]; then echo "::error::Ya hay una release abierta: $OPEN"; exit 1; fi
+      - name: Crear rama en el ultimo rc validado
+        run: |
+          V="${{ steps.rc.outputs.version }}"; SHA="${{ steps.rc.outputs.rc_sha }}"
+          git push origin "$SHA:refs/heads/release/$V"
+          {
+            echo "Creada release/$V en ${{ steps.rc.outputs.rc_tag }} ($SHA)"
+            if [[ "$SHA" != "$(git rev-parse HEAD)" ]]; then
+              echo "Nota: develop tiene commits posteriores sin validar en PRE; no entran en esta release."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Disparar pipeline (sin PAT el push no dispara workflows)
+        if: env.HAS_PAT != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run gitflow.cicd.yaml --ref "release/${{ steps.rc.outputs.version }}"

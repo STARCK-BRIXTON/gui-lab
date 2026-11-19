@@ -1,0 +1,32 @@
+name: Hotfix
+
+# Boton: crea hotfix/X.Y.(Z+1) desde main (patch+1 del ultimo estable). La rama nace sin commits
+# (noop) y congela PRE. Se pushea el fix: el pipeline hace tests + sonar + build + scan, tag rc.N,
+# deploy PRE y promociona a PRO (aprobacion gated) desde la propia rama; despues sync a develop y release abierta.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cut:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.GITFLOW_TOKEN || github.token }}
+      - run: git fetch --tags --force
+      - id: v
+        run: .github/scripts/semver.sh hotfix/new version.json
+      - name: Validar y crear rama
+        run: |
+          V="${{ steps.v.outputs.version }}"
+          OPEN=$(git ls-remote --heads origin 'hotfix/*' | awk '{print $2}' | sed 's#refs/heads/##' | head -1)
+          if [[ -n "$OPEN" ]]; then echo "::error::Ya hay un hotfix abierto: $OPEN"; exit 1; fi
+          git checkout -b "hotfix/$V"
+          git push origin "hotfix/$V"
+          echo "Creada hotfix/$V. Pushea el fix a esa rama." >> "$GITHUB_STEP_SUMMARY"
