@@ -1,45 +1,50 @@
-name: GitFlow Lab (dummy)
+name: GitFlow CI/CD (dummy)
 
-# Workflow dummy para probar el flujo de gitflow.png:
-#   feature/*  -> unit tests + sonar
-#   develop    -> tests + sonar + build + tag vX.Y.Z-prerelease.N + deploy dev
-#   release/*  -> build + tag vX.Y.Z-rc.N + publish artifacts + deploy pre
-#   hotfix/*   -> build + tag vX.Y.(Z+1)-rc.N + deploy pre
-#   main       -> retag imagen vX.Y.Z (sin rebuild) + tag + deploy pro (gated) + sync main -> develop
-# La version se calcula en .github/scripts/semver.sh a partir de version.json y los tags.
+# Pipeline dummy de docs/gitflow-v3.png. Docker/ACR/AKS/Helm/Sonar/Anchore son `echo`;
+# lo real es el versionado, el tageo, la promocion y la sincronizacion de ramas.
+#
+#   feature/*, PR a develop -> unit tests + sonar
+#   develop                 -> tests + sonar + build/push X.Y.Z-prerelease.N + scan + tag prerelease
+#                              -> deploy DEV -> clone a PRE (X.Y.Z-rc.N, mismo digest) -> deploy PRE -> tag rc
+#                              (PRE se congela mientras haya release/* o hotfix/* abierto)
+#   release/X.Y.Z           -> corta "Cut release" en el ultimo commit con tag rc: NO construye, solo promociona.
+#                              Con un fix nuevo: tests + sonar + build + scan + rc.N+1 -> PRE -> promociona.
+#   hotfix/X.Y.Z            -> tests + sonar + build + scan + rc.N -> PRE -> promociona
+#   promocion               -> clone pre->pro (X.Y.Z) -> aprobacion gated -> deploy PRO desde la rama
+#                              -> SOLO si PRO OK: merge a main + tag vX.Y.Z + Release + sync develop
+# Version y kind: .github/scripts/semver.sh. Tag rc = "commit validado en PRE".
+#
+# Secret opcional GITFLOW_TOKEN (GitHub App/PAT): con el, los pushes del pipeline disparan workflows y
+# pueden saltar proteccion de ramas. Sin el se usa GITHUB_TOKEN y se re-dispara via workflow_dispatch.
 
 on:
   push:
-    branches:
-      - develop
-      - main
-      - 'feature/**'
-      - 'release/**'
-      - 'hotfix/**'
+    branches: [develop, 'feature/**', 'release/**', 'hotfix/**']
   pull_request:
-    branches:
-      - develop
-      - main
-      - 'release/**'
+    branches: [develop]
   workflow_dispatch:
     inputs:
       fail_pro_deploy:
-        description: 'Simular fallo en Deploy PRO (el sync a develop NO debe ejecutarse)'
+        description: 'Simular fallo en Deploy PRO (main no debe tocarse)'
         type: boolean
         default: false
 
 permissions:
-  contents: write        # tags, releases, push a develop
-  pull-requests: write   # PR de sync si hay conflicto
-  actions: write         # re-disparar develop tras el sync
+  contents: write
+  pull-requests: write
+  actions: write
 
-# Una ejecucion a la vez por rama; nunca cancelar (evita tags duplicados / deploys a medias)
+# Una ejecucion a la vez por rama; nunca cancelar (evita tags duplicados y deploys a medias)
 concurrency:
   group: gitflow-${{ github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: false
 
+env:
+  ACR: acrlab.azurecr.io   # dummy
+  APP: gui-lab
+
 jobs:
-  # ───────────────────────── Versionado automatico ─────────────────────────
+  # ───────────── Version + estado ─────────────
   setup:
     name: Calcular version
     runs-on: ubuntu-latest
@@ -48,6 +53,8 @@ jobs:
       version: ${{ steps.semver.outputs.version }}
       tag: ${{ steps.semver.outputs.tag }}
       rc_tag: ${{ steps.semver.outputs.rc_tag }}
+      image_tag: ${{ steps.semver.outputs.image_tag }}
+      pre_frozen: ${{ steps.freeze.outputs.frozen }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -55,23 +62,27 @@ jobs:
       - run: git fetch --tags --force
       - id: semver
         env:
-          # En PR no se versiona: solo checks
           BRANCH: ${{ github.event_name == 'pull_request' && 'pr-check' || github.ref_name }}
         run: .github/scripts/semver.sh "$BRANCH" version.json
+      - name: PRE congelado si hay release/hotfix abierto
+        id: freeze
+        run: |
+          OPEN=$(git ls-remote --heads origin 'release/*' 'hotfix/*' | wc -l | tr -d ' ')
+          if [[ "$OPEN" -gt 0 ]]; then echo "frozen=true" >> "$GITHUB_OUTPUT"; else echo "frozen=false" >> "$GITHUB_OUTPUT"; fi
       - name: Resumen
         run: |
           {
             echo "### Version"
-            echo "| kind | version | tag |"
-            echo "|---|---|---|"
-            echo "| ${{ steps.semver.outputs.kind }} | ${{ steps.semver.outputs.version }} | ${{ steps.semver.outputs.tag }} |"
+            echo "| kind | version | tag build | rc | imagen | PRE congelado |"
+            echo "|---|---|---|---|---|---|"
+            echo "| ${{ steps.semver.outputs.kind }} | ${{ steps.semver.outputs.version }} | ${{ steps.semver.outputs.tag }} | ${{ steps.semver.outputs.rc_tag }} | ${{ steps.semver.outputs.image_tag }} | ${{ steps.freeze.outputs.frozen }} |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # ───────────────── feature/* , PRs y develop: calidad ─────────────────
+  # ───────────── Calidad: feature/*, PRs, develop y fixes de release/hotfix ─────────────
   unit-tests:
     name: Unit tests (dummy)
     needs: setup
-    if: needs.setup.outputs.kind != 'release'   # en main no se re-testea: se promociona
+    if: contains(fromJSON('["feature","prerelease","rc"]'), needs.setup.outputs.kind)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -91,139 +102,205 @@ jobs:
           sleep 2
           echo "Quality Gate: PASSED"
 
-  # ───────────────── develop / release / hotfix: build + tag ─────────────────
+  # ───────────── Build + scan (develop, y fixes de release/hotfix) ─────────────
   build:
-    name: Build (dummy)
-    needs: [setup, unit-tests, sonarqube]
-    if: github.event_name != 'pull_request' && (needs.setup.outputs.kind == 'prerelease' || needs.setup.outputs.kind == 'rc')
+    name: Build + push imagen (dummy)
+    needs: [setup, sonarqube]
+    if: github.event_name != 'pull_request' && contains(fromJSON('["prerelease","rc"]'), needs.setup.outputs.kind)
     runs-on: ubuntu-latest
+    outputs:
+      digest: ${{ steps.img.outputs.digest }}
     steps:
       - uses: actions/checkout@v4
-      - name: Build imagen dummy ${{ needs.setup.outputs.tag }}
+      - id: img
         run: |
-          echo "docker build -t lab-mode:${{ needs.setup.outputs.tag }} ."
-          mkdir -p dist
-          echo "image=lab-mode:${{ needs.setup.outputs.tag }} sha=${GITHUB_SHA}" > dist/image.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: image-${{ needs.setup.outputs.tag }}
-          path: dist/
-          retention-days: 7
+          IMG="$ACR/$APP:${{ needs.setup.outputs.image_tag }}"
+          echo "docker build -t $IMG ."
+          echo "docker push $IMG"
+          DIGEST="sha256:$(echo -n "$IMG$GITHUB_SHA" | sha256sum | cut -d' ' -f1)"
+          echo "digest=$DIGEST" >> "$GITHUB_OUTPUT"
+          echo "Imagen $IMG ($DIGEST)" >> "$GITHUB_STEP_SUMMARY"
 
-  tag:
-    name: Tag ${{ needs.setup.outputs.tag }}
+  scan:
+    name: Scan imagen (anchore, dummy)
     needs: [setup, build]
     runs-on: ubuntu-latest
     steps:
+      - run: |
+          echo "anchore/scan-action: image=$ACR/$APP:${{ needs.setup.outputs.image_tag }} fail-build=true severity-cutoff=high"
+          echo "Sin vulnerabilidades high/critical"
+      # Real:
+      # - uses: anchore/scan-action@v6
+      #   with:
+      #     image: ${{ env.ACR }}/${{ env.APP }}:${{ needs.setup.outputs.image_tag }}
+      #     fail-build: true
+      #     severity-cutoff: high
+
+  tag-prerelease:
+    name: Tag ${{ needs.setup.outputs.tag }}
+    needs: [setup, scan]
+    if: needs.setup.outputs.kind == 'prerelease'
+    runs-on: ubuntu-latest
+    steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Crear y publicar tag
-        run: |
+          token: ${{ secrets.GITFLOW_TOKEN || github.token }}
+      - run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "${{ needs.setup.outputs.tag }}" -m "${{ needs.setup.outputs.tag }}" "$GITHUB_SHA"
-          git push origin "${{ needs.setup.outputs.tag }}"
-          echo "Tag publicado: ${{ needs.setup.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
+          TAG="${{ needs.setup.outputs.tag }}"
+          git tag -a "$TAG" -m "$TAG" "$GITHUB_SHA"
+          git push origin "$TAG"
 
-  # ───────────────── develop -> DEV ─────────────────
+  # ───────────── DEV -> PRE ─────────────
   deploy-dev:
     name: Deploy DEV (dummy)
-    needs: [setup, tag]
-    if: needs.setup.outputs.kind == 'prerelease'
+    needs: [setup, tag-prerelease]
     runs-on: ubuntu-latest
     environment: dev
+    concurrency:
+      group: deploy-dev
+      cancel-in-progress: false
     steps:
       - run: |
-          echo "helm upgrade lab-mode --set image.tag=${{ needs.setup.outputs.tag }} -n dev"
-          echo "Desplegado ${{ needs.setup.outputs.tag }} en DEV"
+          echo "helm upgrade --install $APP chart/ -n dev --atomic --wait --set image.tag=${{ needs.setup.outputs.image_tag }}"
+          echo "Desplegado ${{ needs.setup.outputs.image_tag }} en DEV"
 
-  # ───────────────── release/* y hotfix/* -> PRE ─────────────────
-  publish-artifacts:
-    name: Publish artifacts (dummy)
-    needs: [setup, tag]
-    if: needs.setup.outputs.kind == 'rc'
+  clone-pre:
+    name: Clone imagen dev -> pre (dummy)
+    needs: [setup, build, deploy-dev]
+    if: needs.setup.outputs.pre_frozen != 'true'
     runs-on: ubuntu-latest
     steps:
       - run: |
-          echo "docker push registry/lab-mode:${{ needs.setup.outputs.tag }}"
-          echo "Imagen publicada en el registry"
+          echo "az acr import --name acrlab-pre --source $ACR/$APP:${{ needs.setup.outputs.image_tag }} --image $APP:${{ needs.setup.outputs.rc_tag }}"
+          echo "Digest ${{ needs.build.outputs.digest }} (mismo digest, sin rebuild)"
 
   deploy-pre:
     name: Deploy PRE (dummy)
-    needs: [setup, publish-artifacts]
-    if: needs.setup.outputs.kind == 'rc'
+    needs: [setup, scan, clone-pre]
+    # develop: tras clone (si PRE no esta congelado). rc (fix de release/hotfix): directo tras el scan.
+    if: |
+      !cancelled() && needs.scan.result == 'success' &&
+      ((needs.setup.outputs.kind == 'prerelease' && needs.clone-pre.result == 'success') ||
+       needs.setup.outputs.kind == 'rc')
     runs-on: ubuntu-latest
     environment: pre
+    concurrency:
+      group: deploy-pre
+      cancel-in-progress: false
     steps:
       - run: |
-          echo "helm upgrade lab-mode --set image.tag=${{ needs.setup.outputs.tag }} -n pre"
-          echo "Desplegado ${{ needs.setup.outputs.tag }} en PRE"
+          echo "helm upgrade --install $APP chart/ -n pre --atomic --wait --set image.tag=${{ needs.setup.outputs.rc_tag }}"
+          echo "Desplegado ${{ needs.setup.outputs.rc_tag }} en PRE"
 
-  # ───────────────── main -> PRO (retag, sin rebuild) ─────────────────
-  retag:
-    name: Retag imagen (dummy)
-    needs: setup
-    if: needs.setup.outputs.kind == 'release'
+  # El tag rc solo existe si el commit se valido en PRE
+  tag-rc:
+    name: Tag ${{ needs.setup.outputs.rc_tag }}
+    needs: [setup, deploy-pre]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Retag ${{ needs.setup.outputs.rc_tag }} -> ${{ needs.setup.outputs.tag }}
-        run: |
-          echo "docker buildx imagetools create -t registry/lab-mode:${{ needs.setup.outputs.tag }} registry/lab-mode:${{ needs.setup.outputs.rc_tag }}"
-          echo "Misma imagen, sin rebuild"
-      - name: Tag estable + GitHub Release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release view "${{ needs.setup.outputs.tag }}" >/dev/null 2>&1 || \
-          gh release create "${{ needs.setup.outputs.tag }}" \
-            --target "$GITHUB_SHA" \
-            --title "${{ needs.setup.outputs.tag }}" \
-            --generate-notes
+          token: ${{ secrets.GITFLOW_TOKEN || github.token }}
+      - run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          TAG="${{ needs.setup.outputs.rc_tag }}"
+          git tag -a "$TAG" -m "$TAG" "$GITHUB_SHA"
+          git push origin "$TAG"
+
+  # ───────────── Promocion a PRO desde release/* o hotfix/* ─────────────
+  retag:
+    name: Clone imagen pre -> pro (dummy)
+    needs: [setup, tag-rc]
+    # promote: HEAD ya tiene rc (no se construye). rc: tras construir y validar el fix en PRE.
+    if: |
+      !cancelled() && needs.setup.result == 'success' &&
+      (needs.setup.outputs.kind == 'promote' ||
+       (needs.setup.outputs.kind == 'rc' && needs.tag-rc.result == 'success'))
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          RC="${{ needs.setup.outputs.rc_tag }}"; RC="${RC#v}"
+          echo "az acr import --name acrlab-pro --source $ACR/$APP:$RC --image $APP:${{ needs.setup.outputs.version }}"
+          echo "$RC -> ${{ needs.setup.outputs.version }}: mismo digest, sin rebuild"
 
   deploy-pro:
     name: Deploy PRO (dummy, gated)
     needs: [setup, retag]
     runs-on: ubuntu-latest
-    # Configurar "Required reviewers" en Settings > Environments > pro  (Gated approval)
+    # Settings > Environments > pro > Required reviewers (Gated approval) y Deployment branches: release/**, hotfix/**
     environment: pro
+    concurrency:
+      group: deploy-pro
+      cancel-in-progress: false
     steps:
-      - name: Deploy
-        run: |
-          echo "helm upgrade lab-mode --set image.tag=${{ needs.setup.outputs.tag }} -n pro"
-          echo "Desplegado ${{ needs.setup.outputs.tag }} en PRO"
-      - name: Simular fallo (workflow_dispatch fail_pro_deploy)
+      - run: |
+          echo "helm upgrade --install $APP chart/ -n pro --atomic --wait --set image.tag=${{ needs.setup.outputs.version }}"
+          echo "Desplegado ${{ needs.setup.outputs.version }} en PRO desde ${{ github.ref_name }}"
+      - name: Simular fallo
         if: github.event.inputs.fail_pro_deploy == 'true'
         run: |
           echo "::error::Fallo simulado en Deploy PRO"
           exit 1
 
-  # ───────────────── Sync main -> develop (solo tras Deploy OK en PRO) ─────────────────
-  sync-develop:
-    name: Merge main -> develop
+  # Solo tras PRO OK. Idempotente: se puede relanzar con "Re-run failed jobs".
+  finalize:
+    name: Merge a main + tag + Release
     needs: [setup, deploy-pro]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: main
           fetch-depth: 0
-      - name: Merge main en develop
-        id: merge
+          token: ${{ secrets.GITFLOW_TOKEN || github.token }}
+      - name: Merge, tag y Release
         env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.setup.outputs.tag }}
+          GH_TOKEN: ${{ secrets.GITFLOW_TOKEN || github.token }}
+          BR: ${{ github.ref_name }}
+          TAG: v${{ needs.setup.outputs.version }}
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout develop
+          git fetch origin "$BR" --tags
+          if ! git merge-base --is-ancestor "origin/$BR" HEAD; then
+            git merge --no-ff "origin/$BR" -m "chore(release): $TAG" || { git merge --abort; echo "::error::Conflicto al mergear $BR en main"; exit 1; }
+            git push origin main || { echo "::error::Push a main rechazado: permitir bypass al bot/token (GITFLOW_TOKEN) en el ruleset de main"; exit 1; }
+          fi
+          if ! git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            git tag -a "$TAG" -m "$TAG" HEAD
+            git push origin "$TAG"
+          fi
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --target "$(git rev-parse HEAD)" --title "$TAG" --generate-notes
+          git push origin --delete "$BR" || true
+
+  sync-develop:
+    name: Merge main -> develop
+    needs: [setup, finalize]
+    runs-on: ubuntu-latest
+    env:
+      HAS_PAT: ${{ secrets.GITFLOW_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+          fetch-depth: 0
+          token: ${{ secrets.GITFLOW_TOKEN || github.token }}
+      - id: merge
+        env:
+          GH_TOKEN: ${{ secrets.GITFLOW_TOKEN || github.token }}
+          TAG: v${{ needs.setup.outputs.version }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          if git merge-base --is-ancestor origin/main HEAD; then echo "mode=none" >> "$GITHUB_OUTPUT"; exit 0; fi
           if git merge --no-ff origin/main -m "chore: sync main ($TAG) into develop"; then
-            if git push origin develop; then
-              echo "mode=direct" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
+            if git push origin develop; then echo "mode=direct" >> "$GITHUB_OUTPUT"; exit 0; fi
             echo "Push directo rechazado (rama protegida?), abriendo PR"
           else
             git merge --abort || true
@@ -235,8 +312,40 @@ jobs:
             --title "chore: sync main ($TAG) into develop" \
             --body "Back-merge automatico tras Deploy OK en PRO de $TAG." || true
           echo "mode=pr" >> "$GITHUB_OUTPUT"
-      - name: Re-disparar develop (los pushes con GITHUB_TOKEN no disparan workflows)
-        if: steps.merge.outputs.mode == 'direct'
+      - name: Re-disparar develop (sin PAT los pushes no disparan workflows)
+        if: steps.merge.outputs.mode == 'direct' && env.HAS_PAT != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run gitflow.cicd.yaml --ref develop
+
+  # Un hotfix tambien debe llegar a una release abierta (se revalida: la rama pasa a tener un commit nuevo sin rc)
+  sync-release:
+    name: Merge main -> release abierta
+    needs: [setup, finalize]
+    if: startsWith(github.ref_name, 'hotfix/')
+    runs-on: ubuntu-latest
+    env:
+      HAS_PAT: ${{ secrets.GITFLOW_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITFLOW_TOKEN || github.token }}
+      - env:
+          GH_TOKEN: ${{ secrets.GITFLOW_TOKEN || github.token }}
+          TAG: v${{ needs.setup.outputs.version }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          for REF in $(git ls-remote --heads origin 'release/*' | awk '{print $2}' | sed 's#refs/heads/##'); do
+            git checkout -B "$REF" "origin/$REF"
+            if git merge-base --is-ancestor origin/main HEAD; then continue; fi
+            if git merge --no-ff origin/main -m "chore: sync main ($TAG) into $REF"; then
+              git push origin "$REF"
+              [[ "$HAS_PAT" == "true" ]] || gh workflow run gitflow.cicd.yaml --ref "$REF"
+            else
+              git merge --abort || true
+              echo "::warning::Conflicto al sincronizar main en $REF: resolver a mano"
+            fi
+          done
